@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Gemini OS</title>
+    <title>Riyad My Computer</title>
     <style type="text/tailwindcss">
       @layer utilities {
         /* Define classes the LLM is instructed to use, applying Tailwind's styles */
@@ -42,6 +42,51 @@
         }
         .icon-label {
           @apply text-sm text-gray-800 font-medium break-words max-w-full leading-tight;
+        }
+        /* File Explorer Specific Styles */
+        .sidebar-nav {
+          @apply w-48 flex-shrink-0 bg-gray-100 p-2 border-r border-gray-200 overflow-y-auto;
+        }
+        .sidebar-item {
+          @apply flex items-center gap-2 p-2 rounded-md cursor-pointer text-sm text-gray-700 hover:bg-gray-200;
+        }
+        .sidebar-item.active {
+          @apply bg-blue-100 text-blue-800 font-semibold;
+        }
+        .main-panel {
+          @apply flex-grow flex flex-col p-2 bg-white;
+        }
+        .breadcrumbs {
+          @apply flex items-center gap-2 text-sm text-gray-500 pb-2 mb-2 border-b border-gray-200 flex-shrink-0;
+        }
+        .breadcrumb-item {
+          @apply cursor-pointer hover:underline;
+        }
+        .file-grid {
+          @apply flex flex-wrap content-start gap-3 p-2 overflow-y-auto flex-grow;
+        }
+        .file-item {
+          @apply w-24 h-24 flex flex-col items-center justify-center text-center p-2 cursor-pointer select-none rounded-lg transition-colors hover:bg-blue-100 focus:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500;
+        }
+        .file-item-icon {
+          @apply text-4xl mb-1;
+        }
+        .file-item-label {
+          @apply text-xs text-gray-800 font-medium break-words w-full leading-tight;
+        }
+        /* Window Title Bar Buttons */
+        .title-bar-button {
+          @apply h-8 w-8 flex items-center justify-center rounded-full transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-blue-400/50;
+          @apply text-white/80 hover:bg-white/20 active:bg-white/30;
+        }
+        .title-bar-button.close-button {
+          @apply hover:bg-red-500 active:bg-red-600;
+        }
+        /* New Wallpaper Style */
+        .desktop-wallpaper {
+            background-image: linear-gradient(to top right, #accbee, #e7f0fd);
+            background-size: cover;
+            background-position: center;
         }
       }
     </style>

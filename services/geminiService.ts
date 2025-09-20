@@ -25,14 +25,11 @@ export async function* streamAppContent(
   const model = 'gemini-2.5-flash'; // Updated model
 
   if (!process.env.API_KEY) {
-    yield `<div class="p-4 text-red-700 bg-red-100 rounded-lg">
-      <p class="font-bold text-lg">Configuration Error</p>
-      <p class="mt-2">The API_KEY is not configured. Please set the API_KEY environment variable.</p>
-    </div>`;
-    return;
+    throw new Error('The API_KEY is not configured. Please set the API_KEY environment variable.');
   }
 
   if (interactionHistory.length === 0) {
+    // This case should ideally not be hit if called correctly, but as a safeguard:
     yield `<div class="p-4 text-orange-700 bg-orange-100 rounded-lg">
       <p class="font-bold text-lg">No interaction data provided.</p>
     </div>`;
@@ -113,26 +110,20 @@ Generate the HTML content for the window's content area only:`;
     }
   } catch (error) {
     console.error('Error streaming from Gemini:', error);
-    let errorMessage = 'An error occurred while generating content.';
-    // Check if error is an instance of Error and has a message property
-    if (error instanceof Error && typeof error.message === 'string') {
-      errorMessage += ` Details: ${error.message}`;
+    let errorMessage = 'An unknown error occurred while generating content.';
+    if (error instanceof Error) {
+      errorMessage = error.message;
     } else if (
       typeof error === 'object' &&
       error !== null &&
       'message' in error &&
-      typeof (error as any).message === 'string'
+      typeof (error as {message: unknown}).message === 'string'
     ) {
-      // Handle cases where error might be an object with a message property (like the API error object)
-      errorMessage += ` Details: ${(error as any).message}`;
+      errorMessage = (error as {message: string}).message;
     } else if (typeof error === 'string') {
-      errorMessage += ` Details: ${error}`;
+      errorMessage = error;
     }
-
-    yield `<div class="p-4 text-red-700 bg-red-100 rounded-lg">
-      <p class="font-bold text-lg">Error Generating Content</p>
-      <p class="mt-2">${errorMessage}</p>
-      <p class="mt-1">This may be due to an API key issue, network problem, or misconfiguration. Please check the developer console for more details.</p>
-    </div>`;
+    // Instead of yielding HTML, throw a new error that can be caught by the calling component.
+    throw new Error(errorMessage);
   }
 }

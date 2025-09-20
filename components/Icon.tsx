@@ -25,7 +25,11 @@ export const Icon: React.FC<IconProps> = ({app, onInteract}) => {
       <div
         className="w-20 h-20 rounded-xl flex items-center justify-center mb-2 shadow-md group-hover:shadow-lg transition-all duration-200 ease-in-out"
         style={{backgroundColor: app.color}}>
-        <div className="text-5xl drop-shadow-sm">{app.icon}</div>
+        <div
+          className="text-5xl drop-shadow-sm"
+          style={{color: app.iconColor || 'inherit'}}>
+          {app.icon}
+        </div>
       </div>
       <div className="text-sm text-gray-800 font-semibold break-words max-w-full leading-tight">
         {app.name}

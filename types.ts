@@ -9,6 +9,7 @@ export interface AppDefinition {
   name: string;
   icon: string;
   color: string;
+  iconColor?: string;
 }
 
 export interface InteractionData {

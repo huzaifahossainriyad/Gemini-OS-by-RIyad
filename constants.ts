@@ -6,13 +6,23 @@
 import {AppDefinition} from './types';
 
 export const APP_DEFINITIONS_CONFIG: AppDefinition[] = [
-  {id: 'my_computer', name: 'Desktop', icon: '💻', color: '#e3f2fd'},
-  {id: 'documents', name: 'Documents', icon: '📁', color: '#f1f8e9'},
+  {id: 'file_explorer_app', name: 'File Explorer', icon: '🗂️', color: '#ffca28'},
   {id: 'notepad_app', name: 'Notepad', icon: '📝', color: '#fffde7'},
-  {id: 'settings_app', name: 'Settings', icon: '⚙️', color: '#e7f3ff'}, // Reverted from 'parameters_app' and 'Parameters'
+  {
+    id: 'terminal_app',
+    name: 'Terminal',
+    icon: '>_',
+    color: '#212121',
+    iconColor: '#FFFFFF',
+  },
+  {id: 'settings_app', name: 'Settings', icon: '⚙️', color: '#e7f3ff'},
   {id: 'trash_bin', name: 'Trash Bin', icon: '🗑️', color: '#ffebee'},
   {id: 'web_browser_app', name: 'Web', icon: '🌐', color: '#e0f7fa'},
   {id: 'calculator_app', name: 'Calculator', icon: '🧮', color: '#f5f5f5'},
+  {id: 'music_app', name: 'Music', icon: '🎵', color: '#e57373'},
+  {id: 'weather_app', name: 'Weather', icon: '☀️', color: '#4fc3f7'},
+  {id: 'maps_app', name: 'Maps', icon: '🗺️', color: '#a5d6a7'},
+  {id: 'photos_app', name: 'Photos', icon: '🖼️', color: '#fff176'},
   {id: 'travel_app', name: 'Travel', icon: '✈️', color: '#e8f5e9'},
   {id: 'shopping_app', name: 'Shopping', icon: '🛒', color: '#fff3e0'},
   {id: 'gaming_app', name: 'Games', icon: '🎮', color: '#f3e5f5'},
@@ -30,9 +40,31 @@ You MUST generate all content in ${language}. All UI text, labels, and content m
 
 **Instructions**
 0.  **Available apps:** The computer has several apps that can be opened from home screen.
-    - "Desktop": Details desktop system specifications in a google-y way. Do not include extra content like one that replicates the home app space.
-    - "Documents": Has files, photos.
+    - "File Explorer": Generates a classic, responsive file explorer interface. The entire app content MUST be wrapped in a flex container like \`<div style="display: flex; height: 100%; width: 100%;">...</div>\` to ensure it fills the space.
+        - **Left Sidebar:** Use a \`<div class="sidebar-nav">...</div>\` for the navigation pane. List items like "Desktop", "Documents", "Downloads". Each item must be a clickable div, for example: \`<div class="sidebar-item" data-interaction-id="file_nav_documents"><span>📄</span> Documents</div>\`. The currently active/selected item MUST have the "active" class: \`<div class="sidebar-item active" ...>\`.
+        - **Right Main Panel:** This panel holds the breadcrumbs and file grid. It should be structured as \`<div class="main-panel">...</div>\`.
+        - **Breadcrumbs:** At the top of the main panel, show the current path using \`<div class="breadcrumbs">...</div>\`. Example: \`<div class="breadcrumbs"><span class="breadcrumb-item" data-interaction-id="breadcrumb_this_pc">This PC</span> &gt; <span class="breadcrumb-item" data-interaction-id="breadcrumb_documents">Documents</span></div>\`.
+        - **File/Folder Grid:** Below the breadcrumbs, display contents in a responsive grid using \`<div class="file-grid">...</div>\`.
+        - **Grid Items:** Each file or folder MUST be a \`<div class="file-item" data-interaction-id="open_folder_pictures">...</div>\`. Inside this, there must be a \`<div class="file-item-icon">...</div>\` and a \`<div class="file-item-label">...</div>\`.
+        - **Visual Distinction:** Use '📁' for folders. For files, use representative emojis like '📄' for documents, '🖼️' for images, '🎵' for music, etc. This is crucial for a clear hierarchy.
+        - **Initial View:** On first open, show the main user folders (Documents, Downloads, Music, Pictures, Videos) in the right panel, with an appropriate location (like "This PC" or "Home") selected and marked as active in the sidebar.
     - "Notepad": Has a writable notepad, edit functionalities and saving functionalities here.
+    - "Terminal": Generates a classic command-line terminal interface.
+        - **Appearance:** Use a dark background (e.g., \`style="background-color: #1e1e1e; color: #d4d4d4; font-family: 'Courier New', Courier, monospace;"\`) for the main container. The container must fill the entire available space.
+        - **Layout:** It MUST have an output area to display a history of commands and their results, and a command input area at the bottom.
+        - **Output Area:** Display past commands and their text-based output. Use \`<pre>\` tags for formatting to preserve whitespace and line breaks.
+        - **Input Line:** The last line MUST be the command prompt. It should look like this: \`<div class="llm-row"><label for="terminal_input" class="llm-label" style="color: #d4d4d4;">C:\\Users\\User&gt;</label><input type="text" id="terminal_input" class="llm-input" style="background:transparent; border:none; color: #d4d4d4; flex-grow: 1;"><button class="llm-button" data-interaction-id="terminal_command_submit" data-value-from="terminal_input">Run</button></div>\`
+        - **Interactivity:** The user types a command in the input with \`id="terminal_input"\` and clicks the "Run" button.
+        - **Command Logic:**
+            - On first open, show a welcome message like "Gemini OS [Version 1.0]".
+            - When the user submits a command, re-render the entire terminal content, including the output of the command they just ran, followed by a new empty input prompt at the bottom.
+            - **Supported Commands:**
+                - \`help\`: List all available commands (\`ls\`, \`date\`, \`echo\`, \`clear\`, \`help\`).
+                - \`ls\`: Display a list of fake files and folders (e.g., \`Documents\`, \`Downloads\`, \`system32\`).
+                - \`date\`: Show the current system date and time.
+                - \`echo [text]\`: Repeat the text that follows the command. Example: \`echo Hello World\` should output \`Hello World\`.
+                - \`clear\`: The output should be a fresh terminal with only the input prompt, clearing all previous output.
+                - **Unknown Command:** If the command is not recognized, output a message like \`'command_name' is not recognized as an internal or external command...\`.
     - "Settings": This is a regular app generated by you, not the OS-level parameters panel. It has usual settings like display, sound, network, privacy, wallpaper, etc.
     - "Trash Bin": Has example files that can be deleted.
     - "Web": Goes into web browsing mode.
@@ -40,6 +72,10 @@ You MUST generate all content in ${language}. All UI text, labels, and content m
         - If the user provides a search query (e.g., "latest news"), append it like this: \`src="https://www.google.com/search?q=URL_ENCODED_QUERY&igu=1&source=hp&ei=&iflsig=&output=embed"\`.
         - You can also include other widgets like shortcuts to enhance the web navigation experience.
     - "Calculator": Has a calculator widget with rectangular layout.
+    - "Music": Generates a music player interface with sample songs, playlists, and playback controls.
+    - "Weather": Generates a weather forecast interface. It should ask for a city if one isn't provided, and then display current weather and a multi-day forecast.
+    - "Maps": Asks the user for a location and then embeds a Google Map of that location using the specified iframe format.
+    - "Photos": Generates a simple photo gallery view with a grid of placeholder images. Each image should be clickable to view a larger version.
     - "Travel": Starts with various travel planning and navigation options including Google Maps.
     - "Shopping": Has a shopping cart with example list of products.
     - "Games": Has a menu of games that are playable when opened.
