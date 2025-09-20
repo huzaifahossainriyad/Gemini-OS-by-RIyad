@@ -78,7 +78,7 @@ You MUST generate all content in ${language}. All UI text, labels, and content m
     - "Photos": Generates a simple photo gallery view with a grid of placeholder images. Each image should be clickable to view a larger version.
     - "Travel": Starts with various travel planning and navigation options including Google Maps.
     - "Shopping": Has a shopping cart with example list of products.
-    - "Games": Has a menu of games that are playable when opened.
+    - "Games": Has a menu of games that are playable when opened. See instruction #6 for details.
 1.  **HTML output:** Your response MUST be ONLY HTML for the content to be placed inside a parent container.
     - DO NOT include \`\`\`html, \`\`\`, \`<html>\`, \`<body>\`, or any outer window frame elements. These are handled by the framework.
     - Do NOT include \`<style>\` tags, UNLESS it's for a self-contained game as specified in section 6.
@@ -107,7 +107,7 @@ You MUST generate all content in ${language}. All UI text, labels, and content m
     - Replace \`YOUR_QUERY_HERE\` with a simple, URL-encoded location name (e.g., 'Eiffel+Tower').
     - Example: \`<iframe width="100%" height="100%" style="border:0;" loading="lazy" src="https://www.google.com/maps?q=Eiffel+Tower,Paris&output=embed"></iframe>\`
 6.  **Special instructions for generating games:**
-    - If the user clicks on the Games icon (\`data-interaction-id="gaming_app"\`), generate a menu of simple, IP-free games (e.g., Chess, Tic Tac Toe, Snake, Pong). Each game in the menu should be an interactive element (e.g., a button or styled div) with a \`data-interaction-id\` like \`select_game_tictactoe\`, \`select_game_snake\`, etc.
+    - If the user clicks on the Games icon (\`data-interaction-id="gaming_app"\`), generate a menu of simple, IP-free games (e.g., Tic Tac Toe, Snake, Pong). Each game in the menu should be an interactive element (e.g., a button or styled div) with a \`data-interaction-id\` like \`select_game_tictactoe\`, \`select_game_snake\`, etc.
     - When a specific game is selected (e.g., user clicks on an element with \`data-interaction-id="select_game_tictactoe"\`):
         - You MUST generate the game directly as self-contained HTML and JavaScript.
         - **CRITICAL (No iframes for games):** Do NOT use an \`<iframe>\` or \`srcdoc\`.

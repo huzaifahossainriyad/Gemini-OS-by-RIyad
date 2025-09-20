@@ -27,11 +27,12 @@ interface WindowProps {
   onGoBack: () => void;
   canGoBack: boolean;
   rect: WindowRect;
-  setRect: React.Dispatch<React.SetStateAction<any>>;
+  setRect: (updater: (prev: WindowRect) => WindowRect) => void;
   containerRef: RefObject<HTMLElement>;
   onMinimize: () => void;
   onMaximize: () => void;
   isMaximized: boolean;
+  isLoading: boolean;
 }
 
 const MenuItem: React.FC<{
@@ -67,9 +68,12 @@ export const Window: React.FC<WindowProps> = ({
   onMinimize,
   onMaximize,
   isMaximized,
+  isLoading,
 }) => {
   const handleDragMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     if (isMaximized) return;
+    // Only drag with the primary mouse button
+    if (e.button !== 0) return;
     e.preventDefault();
     const startX = e.clientX;
     const startY = e.clientY;
@@ -89,7 +93,7 @@ export const Window: React.FC<WindowProps> = ({
       newX = Math.max(0, Math.min(newX, container.clientWidth - rect.width));
       newY = Math.max(0, Math.min(newY, container.clientHeight - rect.height));
 
-      setRect((prev: any) => ({...prev, x: newX, y: newY}));
+      setRect((prev) => ({...prev, x: newX, y: newY}));
     };
 
     const handleMouseUp = () => {
@@ -103,6 +107,8 @@ export const Window: React.FC<WindowProps> = ({
 
   const handleResizeMouseDown =
     (direction: string) => (e: React.MouseEvent<HTMLDivElement>) => {
+      // Only resize with the primary mouse button
+      if (e.button !== 0) return;
       e.preventDefault();
       e.stopPropagation();
 
@@ -148,7 +154,7 @@ export const Window: React.FC<WindowProps> = ({
             newRect.y = Math.max(0, initialRect.y + deltaY);
           }
         }
-        setRect((prev: any) => ({...prev, ...newRect}));
+        setRect(() => newRect);
       };
 
       const handleMouseUp = () => {
@@ -234,7 +240,7 @@ export const Window: React.FC<WindowProps> = ({
           {title}
         </span>
         <div className="flex items-center gap-1">
-          {isAppOpen && (
+          {(isAppOpen || isParametersPanelOpen) && (
             <>
               <button
                 onClick={onMinimize}
@@ -319,11 +325,20 @@ export const Window: React.FC<WindowProps> = ({
             <u>B</u>ack
           </MenuItem>
         )}
-        {isAppOpen && (
-          <MenuItem onClick={onExitToDesktop} className="ml-auto">
-            <u>H</u>ome
-          </MenuItem>
-        )}
+        {/* Right-aligned items */}
+        <div className="ml-auto flex items-center gap-4">
+          {isAppOpen && isLoading && (
+            <div className="flex items-center gap-2" aria-live="polite">
+              <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-blue-500"></div>
+              <span className="text-xs text-gray-600">Loading...</span>
+            </div>
+          )}
+          {isAppOpen && (
+            <MenuItem onClick={onExitToDesktop}>
+              <u>H</u>ome
+            </MenuItem>
+          )}
+        </div>
       </div>
 
       {/* Content */}

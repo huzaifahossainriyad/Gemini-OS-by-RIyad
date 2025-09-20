@@ -95,15 +95,19 @@ const Taskbar: React.FC<TaskbarProps> = ({
       <div className="flex items-center gap-3 px-2">
         <svg
           xmlns="http://www.w3.org/2000/svg"
-          className="h-4 w-4 text-white"
+          className="h-5 w-5 text-white"
           fill="none"
           viewBox="0 0 24 24"
-          stroke="currentColor">
+          stroke="currentColor"
+          strokeWidth={1.5}
+          aria-label="Network Status"
+        >
+          {/* FIX: The `title` attribute is not valid on SVG elements in React. Replaced with a <title> child element for accessibility and to fix the type error. */}
+          <title>Network: Connected</title>
           <path
             strokeLinecap="round"
             strokeLinejoin="round"
-            strokeWidth="2"
-            d="M8.111 16.556A5.5 5.5 0 0112 15c1.472 0 2.842.55 3.889 1.556M12 21V11m0 0c2.889 0 5.5 2.462 5.5 5.5"
+            d="M8.288 15.038a5.25 5.25 0 017.424 0M5.136 11.886c3.87-3.87 10.154-3.87 14.024 0M1.984 8.734c5.76-5.76 15.084-5.76 20.844 0"
           />
         </svg>
         <Clock />
@@ -188,8 +192,15 @@ interface WindowRect {
   y: number;
   width: number;
   height: number;
-  isInitialized: boolean;
 }
+
+interface WindowState {
+  rect: WindowRect;
+  isMaximized: boolean;
+  preMaximizeRect: WindowRect | null;
+}
+
+const LOCAL_STORAGE_KEY = 'riyad-my-computer-window-states';
 
 const App: React.FC = () => {
   // --- Multi-app state management ---
@@ -197,31 +208,34 @@ const App: React.FC = () => {
   const [activeAppId, setActiveAppId] = useState<string | null>(null);
   const [appStates, setAppStates] = useState<Record<string, AppState>>({});
 
-  // --- Window geometry state ---
+  // --- Unified Window State (with persistence) ---
   const mainContainerRef = useRef<HTMLElement>(null);
-  const [windowRect, setWindowRect] = useState<WindowRect>({
-    x: 0,
-    y: 0,
-    width: 800,
-    height: 600,
-    isInitialized: false,
-  });
-  const [isMaximized, setIsMaximized] = useState(false);
-  const [preMaximizeRect, setPreMaximizeRect] = useState<WindowRect | null>(
-    null,
+  const [windowStates, setWindowStates] = useState<Record<string, WindowState>>(
+    {},
   );
 
-  useLayoutEffect(() => {
-    if (mainContainerRef.current && !windowRect.isInitialized) {
-      const {clientWidth, clientHeight} = mainContainerRef.current;
-      setWindowRect((prev) => ({
-        ...prev,
-        x: Math.max(0, (clientWidth - prev.width) / 2),
-        y: Math.max(0, (clientHeight - prev.height) / 2),
-        isInitialized: true,
-      }));
+  // Load window states from localStorage on initial mount
+  useEffect(() => {
+    try {
+      const savedStates = localStorage.getItem(LOCAL_STORAGE_KEY);
+      if (savedStates) {
+        setWindowStates(JSON.parse(savedStates));
+      }
+    } catch (e) {
+      console.error('Failed to load window states from localStorage:', e);
     }
-  }, [windowRect.isInitialized]);
+  }, []);
+
+  // Save window states to localStorage whenever they change
+  useEffect(() => {
+    try {
+      if (Object.keys(windowStates).length > 0) {
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(windowStates));
+      }
+    } catch (e) {
+      console.error('Failed to save window states to localStorage:', e);
+    }
+  }, [windowStates]);
 
   // --- Global state ---
   const [isParametersOpen, setIsParametersOpen] = useState<boolean>(false);
@@ -237,6 +251,7 @@ const App: React.FC = () => {
   // --- Derived State ---
   const activeApp = openApps.find((app) => app.id === activeAppId);
   const activeAppState = activeAppId ? appStates[activeAppId] : undefined;
+  const activeWindowState = activeAppId ? windowStates[activeAppId] : undefined;
 
   const internalHandleLlmRequest = useCallback(
     async (
@@ -361,6 +376,33 @@ const App: React.FC = () => {
       setActiveAppId(app.id);
       if (isParametersOpen) setIsParametersOpen(false);
 
+      // Initialize window state if it doesn't exist
+      setWindowStates(prevStates => {
+        if (prevStates[app.id]) {
+            return prevStates; // Already exists
+        }
+        const container = mainContainerRef.current;
+        const defaultWidth = 800;
+        const defaultHeight = 600;
+        const newRect = container
+          ? {
+              width: defaultWidth,
+              height: defaultHeight,
+              x: Math.max(0, (container.clientWidth - defaultWidth) / 2),
+              y: Math.max(0, (container.clientHeight - defaultHeight) / 2),
+            }
+          : {width: defaultWidth, height: defaultHeight, x: 50, y: 50};
+          
+        return {
+            ...prevStates,
+            [app.id]: {
+                rect: newRect,
+                isMaximized: false,
+                preMaximizeRect: null,
+            }
+        };
+      });
+
       if (!isNew && appStates[app.id]) {
           return; // App already open, just switch to it
       }
@@ -416,9 +458,10 @@ const App: React.FC = () => {
     if (!activeAppId) return;
     const appToCloseId = activeAppId;
 
-    if (isMaximized) {
-      setIsMaximized(false);
-      setPreMaximizeRect(null);
+    // Persist maximized state upon closing
+    const currentWindowState = windowStates[appToCloseId];
+    if (currentWindowState && currentWindowState.isMaximized) {
+      handleMaximize(); // This will restore and save the pre-maximized state
     }
 
     setOpenApps((prev) => prev.filter((app) => app.id !== appToCloseId));
@@ -471,7 +514,6 @@ const App: React.FC = () => {
 
   const handleUpdateHistoryLength = (newLength: number) => {
     setCurrentMaxHistoryLength(newLength);
-    // Note: This does not trim existing histories in appStates to preserve context.
   };
 
   const handleSetStatefulness = (enabled: boolean) => {
@@ -485,28 +527,55 @@ const App: React.FC = () => {
 
   const handleMaximize = () => {
     const container = mainContainerRef.current;
-    if (!container) return;
-
-    if (isMaximized) {
-      // Restore
-      if (preMaximizeRect) {
-        setWindowRect(preMaximizeRect);
-      }
-      setIsMaximized(false);
-      setPreMaximizeRect(null);
-    } else {
-      // Maximize
-      setPreMaximizeRect(windowRect); // Save current state
-      setWindowRect({
-        x: 0,
-        y: 0,
-        width: container.clientWidth,
-        height: container.clientHeight,
-        isInitialized: true,
-      });
-      setIsMaximized(true);
-    }
+    if (!container || !activeAppId || !activeWindowState) return;
+    
+    setWindowStates(prev => {
+        const current = prev[activeAppId];
+        if (current.isMaximized) {
+            // Restore
+            return {
+                ...prev,
+                [activeAppId]: {
+                    ...current,
+                    rect: current.preMaximizeRect || current.rect,
+                    isMaximized: false,
+                    preMaximizeRect: null,
+                }
+            };
+        } else {
+            // Maximize
+            const newRect = {
+                x: 0,
+                y: 0,
+                width: container.clientWidth,
+                height: container.clientHeight,
+            };
+            return {
+                ...prev,
+                [activeAppId]: {
+                    ...current,
+                    rect: newRect,
+                    isMaximized: true,
+                    preMaximizeRect: current.rect,
+                }
+            };
+        }
+    });
   };
+
+  const updateActiveWindowRect = useCallback((updater: WindowRect | ((prev: WindowRect) => WindowRect)) => {
+    if (!activeAppId) return;
+    setWindowStates(prev => {
+      const current = prev[activeAppId];
+      if (!current) return prev;
+      const newRect = typeof updater === 'function' ? updater(current.rect) : updater;
+      return {
+        ...prev,
+        [activeAppId]: { ...current, rect: newRect }
+      };
+    });
+  }, [activeAppId]);
+
 
   const windowTitle = isParametersOpen
     ? 'Riyad My Computer'
@@ -519,7 +588,7 @@ const App: React.FC = () => {
       <main
         ref={mainContainerRef}
         className="desktop-wallpaper w-full h-full relative p-4 pb-16 overflow-hidden">
-        {windowRect.isInitialized && (
+        {activeApp && activeWindowState && (
           <Window
             title={windowTitle}
             onClose={handleCloseAppView}
@@ -532,12 +601,13 @@ const App: React.FC = () => {
             canGoBack={
               !!activeAppState && activeAppState.currentAppPath.length > 1
             }
-            rect={windowRect}
-            setRect={setWindowRect}
+            rect={activeWindowState.rect}
+            setRect={updateActiveWindowRect}
             containerRef={mainContainerRef}
             onMinimize={handleMinimize}
             onMaximize={handleMaximize}
-            isMaximized={isMaximized}>
+            isMaximized={activeWindowState.isMaximized}
+            isLoading={!!activeAppState?.isLoading}>
             <div className="w-full h-full bg-white">
               {isParametersOpen ? (
                 <ParametersPanel
@@ -596,6 +666,40 @@ const App: React.FC = () => {
             </div>
           </Window>
         )}
+         {/* Render Desktop view when no app is active */}
+         {!activeApp && !isParametersOpen && (
+            <DesktopView onAppOpen={handleAppOpen} onSearch={handleSearch} />
+          )}
+          {/* Render parameters panel when it's open (it will appear inside a generic window) */}
+          {isParametersOpen && (
+            <Window
+                title={windowTitle}
+                onClose={handleToggleParametersPanel}
+                isAppOpen={false}
+                onToggleParameters={handleToggleParametersPanel}
+                onExitToDesktop={handleShowDesktop}
+                isParametersPanelOpen={isParametersOpen}
+                onGoBack={() => {}}
+                canGoBack={false}
+                rect={{x: 100, y: 100, width: 600, height: 450}} // Default rect for params
+                setRect={() => {}} // Non-movable
+                containerRef={mainContainerRef}
+                onMinimize={() => {}}
+                onMaximize={() => {}}
+                isMaximized={false}
+                isLoading={false}
+            >
+                <ParametersPanel
+                  currentLength={currentMaxHistoryLength}
+                  onUpdateHistoryLength={handleUpdateHistoryLength}
+                  onClosePanel={handleToggleParametersPanel}
+                  isStatefulnessEnabled={isStatefulnessEnabled}
+                  onSetStatefulness={handleSetStatefulness}
+                  currentLanguage={language}
+                  onSetLanguage={setLanguage}
+                />
+            </Window>
+          )}
       </main>
       <Taskbar
         openApps={openApps}
