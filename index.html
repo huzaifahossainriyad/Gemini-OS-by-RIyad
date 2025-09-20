@@ -77,16 +77,51 @@
         /* Window Title Bar Buttons */
         .title-bar-button {
           @apply h-8 w-8 flex items-center justify-center rounded-full transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-blue-400/50;
-          @apply text-white/80 hover:bg-white/20 active:bg-white/30;
+          @apply text-white/80 hover:bg-white/20 active:bg-white/10 hover:text-white;
         }
         .title-bar-button.close-button {
-          @apply hover:bg-red-500 active:bg-red-600;
+          @apply hover:bg-red-600 active:bg-red-700;
         }
         /* New Wallpaper Style */
         .desktop-wallpaper {
-            background-image: linear-gradient(to top right, #accbee, #e7f0fd);
-            background-size: cover;
-            background-position: center;
+          background-image: linear-gradient(to top right, #accbee, #e7f0fd);
+          background-size: cover;
+          background-position: center;
+        }
+        /* New Taskbar Tooltip Styles */
+        .taskbar-app-icon[data-tooltip]::before,
+        .taskbar-app-icon[data-tooltip]::after {
+          opacity: 0;
+          visibility: hidden;
+          position: absolute;
+          left: 50%;
+          transform: translateX(-50%);
+          transition:
+            opacity 0.2s ease,
+            visibility 0.2s ease;
+          z-index: 50; /* Ensure it's above other elements */
+        }
+        .taskbar-app-icon[data-tooltip]:hover::before,
+        .taskbar-app-icon[data-tooltip]:hover::after {
+          opacity: 1;
+          visibility: visible;
+        }
+        /* Tooltip Box */
+        .taskbar-app-icon[data-tooltip]::before {
+          content: attr(data-tooltip);
+          bottom: 100%;
+          margin-bottom: 7px; /* Space between icon and tooltip */
+          @apply bg-gray-900 text-white text-xs font-medium whitespace-nowrap py-1 px-2 rounded;
+        }
+        /* Tooltip Arrow */
+        .taskbar-app-icon[data-tooltip]::after {
+          content: '';
+          bottom: 100%;
+          margin-bottom: 2px;
+          border-style: solid;
+          border-width: 5px;
+          border-color: theme('colors.gray.900') transparent transparent
+            transparent;
         }
       }
     </style>

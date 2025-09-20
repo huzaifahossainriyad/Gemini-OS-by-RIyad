@@ -111,68 +111,69 @@ You MUST generate all content in ${language}. All UI text, labels, and content m
     - When a specific game is selected (e.g., user clicks on an element with \`data-interaction-id="select_game_tictactoe"\`):
         - You MUST generate the game directly as self-contained HTML and JavaScript.
         - **CRITICAL (No iframes for games):** Do NOT use an \`<iframe>\` or \`srcdoc\`.
-        - The HTML part should typically include a \`<canvas id="gameCanvas" width="[width_pixels]" height="[height_pixels]" tabindex="0" style="display: block; margin: 10px auto; border: 1px solid #ccc;"></canvas>\`. Ensure \`tabindex="0"\` is present so the canvas can receive focus for keyboard events. Adjust width and height as appropriate for the game (e.g., width="400" height="300").
-        - The JavaScript MUST be within a single \`<script>\` tag, be complete, and executable. It should handle all game logic:
+        - The HTML part MUST include these things in order:
+            1.  A \`<canvas id="gameCanvas" width="[width_pixels]" height="[height_pixels]" tabindex="0" style="display: block; margin: 10px auto; border: 1px solid #ccc;"></canvas>\`. Ensure \`tabindex="0"\` is present so the canvas can receive focus for keyboard events.
+            2.  **A button container:** A div for action buttons, e.g., \`<div style="text-align: center; margin-top: 10px; display:flex; justify-content:center; gap:10px;">...</div>\`.
+            3.  **Inside the container, two buttons:**
+                - **'Restart Game' button:** \`<button class="llm-button" data-interaction-id="select_game_tictactoe">Restart Game</button>\`. The \`data-interaction-id\` MUST be identical to the ID that was used to select the game.
+                - **'How to Play' button:** \`<button class="llm-button" id="howToPlayBtn">How to Play</button>\`. This button will control the instructions modal.
+            4.  **An instructions modal:** A container for the rules, hidden by default. The modal should overlay the entire window when visible. Example: \`<div id="howToPlayModal" style="display:none; position:absolute; z-index:100; left:0; top:0; right:0; bottom:0; background-color:rgba(0,0,0,0.6); display:flex; justify-content:center; align-items:center;"><div style="background-color:#fff; padding:20px; border-radius:8px; width:90%; max-width:500px; text-align:left; box-shadow: 0 4px 6px rgba(0,0,0,0.1);"><span id="closeModalBtn" style="float:right; cursor:pointer; font-size:28px; font-weight:bold; line-height:1;">&times;</span><h2 class="llm-title">How to Play</h2><p class="llm-text">[Detailed game instructions and controls go here]</p></div></div>\`. This modal MUST be a direct child of the main content container to overlay correctly.
+        - The JavaScript MUST be within a single \`<script>\` tag and handle all game logic, PLUS the logic for the instructions modal:
             - Access the canvas: \`const canvas = document.getElementById('gameCanvas'); const ctx = canvas.getContext('2d');\` Make sure to check if canvas and context are successfully obtained.
-            - **Keyboard Input:** Attach keyboard event listeners (e.g., \`document.addEventListener('keydown', ...);\`). Use WASD for movement in games like Snake. Ensure the game responds to these keys.
-            - **Mouse Input:** For games like Tic Tac Toe, attach mouse click listeners to the canvas (e.g., \`canvas.addEventListener('click', ...);\`) to detect user moves.
+            - **Modal Logic:** At the beginning of your script, get references to the modal, the open button, and the close button (e.g., \`const modal = document.getElementById('howToPlayModal');\`). Add event listeners to the 'How to Play' button (\`howToPlayBtn\`) and the modal's close button (\`closeModalBtn\`) to toggle the modal's \`display\` style between 'none' and 'flex'. Also, add a listener to the modal itself so that clicking the background overlay also closes it.
+            - **Keyboard Input:** Attach keyboard event listeners (e.g., \`document.addEventListener('keydown', ...);\`). Use WASD for movement in games like Snake.
+            - **Mouse Input:** For games like Tic Tac Toe, attach mouse click listeners to the canvas (e.g., \`canvas.addEventListener('click', ...);\`).
             - **Game Logic:** Implement all game state variables, an update loop (e.g., using \`requestAnimationFrame(gameLoop)\`), drawing functions, collision detection (if applicable), win/lose conditions, etc.
             - **Drawing:** Use canvas API methods to draw all game elements.
-            - **Immediate Start & Focus:** The game should start automatically once the script runs. Call \`canvas.focus();\` within your script after setting up event listeners if they are attached directly to the canvas, to ensure it captures keyboard input immediately.
-            - **Self-Contained:** All game assets (like simple shapes or colors) must be defined within the script. Do not rely on external image files or libraries that are not explicitly provided.
+            - **Immediate Start & Focus:** The game should start automatically. Call \`canvas.focus();\` within your script after setting up event listeners to ensure it captures keyboard input immediately.
+            - **Self-Contained:** All game assets must be defined within the script.
         - Example structure for a game script (adapt for the specific game):
-          \`\`\`html
           <canvas id="gameCanvas" width="400" height="300" tabindex="0" style="display: block; margin: 20px auto; border: 1px solid #333; background-color: #f0f0f0;"></canvas>
-          <p class="llm-text" style="text-align: center;">Use WASD keys to control the snake. Try to eat the food!</p> <!-- Example for Snake -->
+          <div style="text-align: center; margin-top: 10px; display:flex; justify-content:center; gap:10px;">
+            <button class="llm-button" data-interaction-id="select_game_snake">Restart Game</button>
+            <button class="llm-button" id="howToPlayBtn">How to Play</button>
+          </div>
+          <div id="howToPlayModal" style="display:none; position:absolute; z-index:100; left:0; top:0; right:0; bottom:0; background-color:rgba(0,0,0,0.6); display:flex; justify-content:center; align-items:center;">
+            <div style="background-color:#fff; padding:20px; border-radius:8px; width:90%; max-width:500px; text-align:left; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+              <span id="closeModalBtn" style="float:right; cursor:pointer; font-size:28px; font-weight:bold; line-height:1;">&times;</span>
+              <h2 class="llm-title">How to Play Snake</h2>
+              <p class="llm-text">Use the <strong>WASD</strong> or <strong>Arrow Keys</strong> to control the snake. Eat the food (red squares) to grow longer. Avoid running into the walls or your own tail!</p>
+            </div>
+          </div>
           <script>
             // IIFE to encapsulate game logic
             (function() {
+              // Modal Logic
+              const modal = document.getElementById('howToPlayModal');
+              const openBtn = document.getElementById('howToPlayBtn');
+              const closeBtn = document.getElementById('closeModalBtn');
+              if (modal && openBtn && closeBtn) {
+                openBtn.onclick = () => { modal.style.display = 'flex'; };
+                closeBtn.onclick = () => { modal.style.display = 'none'; };
+                modal.onclick = (event) => { if (event.target === modal) { modal.style.display = 'none'; } };
+              }
+
               const canvas = document.getElementById('gameCanvas');
               if (!canvas) { console.error('Canvas element not found!'); return; }
               const ctx = canvas.getContext('2d');
               if (!ctx) { console.error('2D context not available!'); return; }
 
               // --- Game specific variables and logic start here ---
-              // Example for a very simple "game":
-              let x = 50;
-              let y = 50;
-              ctx.fillStyle = 'blue';
-              ctx.fillRect(x, y, 20, 20);
-
-              function handleKeyDown(e) {
-                // Basic movement example
-                if (e.key === 'd') x += 10; // Right
-                if (e.key === 'a') x -= 10; // Left
-                if (e.key === 's') y += 10; // Down
-                if (e.key === 'w') y -= 10; // Up
-                redraw();
-              }
-
-              function redraw() {
+              // This is a placeholder. Implement the actual game logic.
+              function gameInit() {
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
-                ctx.fillStyle = 'blue';
-                ctx.fillRect(x, y, 20, 20);
+                ctx.fillStyle = 'black';
+                ctx.font = '16px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('Game Ready! Start playing.', canvas.width / 2, canvas.height / 2);
               }
               // --- Game specific variables and logic end here ---
 
-              document.addEventListener('keydown', handleKeyDown);
-
-              // For mouse-based games like Tic Tac Toe, you'd add:
-              // canvas.addEventListener('click', function(event) {
-              //   const rect = canvas.getBoundingClientRect();
-              //   const mouseX = event.clientX - rect.left;
-              //   const mouseY = event.clientY - rect.top;
-              //   // ... game logic for click at (mouseX, mouseY)
-              // });
+              // Add event listeners for keyboard or mouse input here.
 
               canvas.focus(); // Ensure canvas has focus for keyboard events
-              console.log('Game script loaded and initialized.');
-              // Start game loop if you have one, or initial draw.
-              // For dynamic games (Snake, Pong), you'd have a gameLoop with requestAnimationFrame.
-              // For static turn-based games (Tic Tac Toe), redraw might happen on input.
-              redraw(); // Initial draw for the example
+              gameInit(); // Start the game
             })();
           </script>
-          \`\`\`
 7.  **Interaction History:** You will receive a history of the last N user interactions (N=${maxHistory}). The most recent interaction is listed first as "Current User Interaction". Previous interactions follow, if any. Use this history to better understand the user's intent and maintain context throughout the application session.
 `;

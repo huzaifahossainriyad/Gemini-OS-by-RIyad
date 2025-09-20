@@ -80,9 +80,9 @@ const Taskbar: React.FC<TaskbarProps> = ({
           <button
             key={app.id}
             onClick={() => onSwitchApp(app.id)}
-            className={`relative h-10 w-12 flex items-center justify-center rounded-md transition-colors ${activeAppId === app.id ? 'bg-white/20' : 'hover:bg-white/10'}`}
+            className={`taskbar-app-icon relative h-10 w-12 flex items-center justify-center rounded-md transition-colors ${activeAppId === app.id ? 'bg-white/20' : 'hover:bg-blue-500/30'}`}
             aria-label={`Switch to ${app.name}`}
-            title={app.name}>
+            data-tooltip={app.name}>
             <span className="text-2xl">{app.icon}</span>
             {activeAppId === app.id && (
               <div className="absolute bottom-0 left-2 right-2 h-1 bg-blue-400 rounded-t-full"></div>
@@ -96,18 +96,20 @@ const Taskbar: React.FC<TaskbarProps> = ({
         <svg
           xmlns="http://www.w3.org/2000/svg"
           className="h-5 w-5 text-white"
-          fill="none"
           viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={1.5}
-          aria-label="Network Status"
-        >
-          {/* FIX: The `title` attribute is not valid on SVG elements in React. Replaced with a <title> child element for accessibility and to fix the type error. */}
+          aria-label="Network Status">
           <title>Network: Connected</title>
           <path
             strokeLinecap="round"
             strokeLinejoin="round"
-            d="M8.288 15.038a5.25 5.25 0 017.424 0M5.136 11.886c3.87-3.87 10.154-3.87 14.024 0M1.984 8.734c5.76-5.76 15.084-5.76 20.844 0"
+            strokeWidth={1.5}
+            stroke="currentColor"
+            fill="none"
+            d="M8.288 15.038a5.25 5.25 0 0 1 7.424 0M5.136 11.886a9 9 0 0 1 12.728 0M1.984 8.734a12.75 12.75 0 0 1 18.032 0"
+          />
+          <path
+            fill="currentColor"
+            d="M12 18.75a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z"
           />
         </svg>
         <Clock />
@@ -320,41 +322,82 @@ const App: React.FC = () => {
         setAppContentCache((prev) => ({...prev, [cacheKey]: activeAppState.llmContent}));
       }
     }
-  }, [
-    activeAppId,
-    activeAppState,
-    isStatefulnessEnabled,
-    appContentCache,
-  ]);
+  }, [activeAppId, activeAppState, isStatefulnessEnabled, appContentCache]);
 
   const handleInteraction = useCallback(
     async (interactionData: InteractionData) => {
       if (!activeAppId) return;
 
-      if (interactionData.id === 'app_close_button') {
-        handleCloseAppView();
+      const currentState = appStates[activeAppId];
+      // Defensive check for robustness.
+      if (!currentState || currentState.currentAppPath.length === 0) {
+        console.error('Cannot handle interaction: active app state is invalid.');
         return;
       }
 
-      const currentState = appStates[activeAppId];
-      const newHistory = [interactionData, ...currentState.interactionHistory.slice(0, currentMaxHistoryLength - 1)];
-      const newPath = [...currentState.currentAppPath, interactionData.id];
-      const cacheKey = newPath.join('__');
-      
-      const newState: AppState = {
-          ...currentState,
-          interactionHistory: newHistory,
-          currentAppPath: newPath,
-          llmContent: '',
-          error: null
-      };
+      // Check if the action is a "Restart". This is true when the interaction ID
+      // of the clicked element (e.g., "Restart Game" button) is the same as the ID
+      // that led to the current screen (e.g., the "Tic-Tac-Toe" menu item).
+      const lastNavigationId =
+        currentState.currentAppPath[currentState.currentAppPath.length - 1];
+      const isRestartAction = interactionData.id === lastNavigationId;
 
-      setAppStates(prev => ({ ...prev, [activeAppId]: newState }));
+      let nextAppPath: string[];
+      let nextInteractionHistory: InteractionData[];
 
-      if (isStatefulnessEnabled && appContentCache[cacheKey]) {
-        setAppStates(prev => ({ ...prev, [activeAppId]: {...prev[activeAppId], llmContent: appContentCache[cacheKey], isLoading: false }}));
+      if (isRestartAction) {
+        // For a restart, we don't change the navigation path or history.
+        // We simply re-use the existing state to re-trigger content generation.
+        nextAppPath = currentState.currentAppPath;
+        nextInteractionHistory = currentState.interactionHistory;
       } else {
-        internalHandleLlmRequest(activeAppId, newHistory, currentMaxHistoryLength, language);
+        // For a normal navigation, we go one level deeper.
+        nextAppPath = [...currentState.currentAppPath, interactionData.id];
+        nextInteractionHistory = [
+          interactionData,
+          ...currentState.interactionHistory.slice(
+            0,
+            currentMaxHistoryLength - 1,
+          ),
+        ];
+      }
+
+      // Set the new state, clearing existing content to prepare for the new view.
+      setAppStates((prev) => ({
+        ...prev,
+        [activeAppId]: {
+          ...currentState,
+          currentAppPath: nextAppPath,
+          interactionHistory: nextInteractionHistory,
+          llmContent: '', // Clear content for regeneration
+          error: null,
+        },
+      }));
+
+      const cacheKey = nextAppPath.join('__');
+
+      // A restart must always ignore the cache to get fresh content.
+      const useCache =
+        !isRestartAction &&
+        isStatefulnessEnabled &&
+        appContentCache[cacheKey];
+
+      if (useCache) {
+        setAppStates((prev) => ({
+          ...prev,
+          [activeAppId]: {
+            ...prev[activeAppId],
+            llmContent: appContentCache[cacheKey],
+            isLoading: false,
+          },
+        }));
+      } else {
+        internalHandleLlmRequest(
+          activeAppId,
+          nextInteractionHistory,
+          currentMaxHistoryLength,
+          language,
+        );
       }
     },
     [
@@ -367,66 +410,76 @@ const App: React.FC = () => {
       language,
     ],
   );
-  
-  const openAndActivateApp = (app: AppDefinition, initialInteraction: InteractionData) => {
-      let isNew = !openApps.some(openApp => openApp.id === app.id);
-      if (isNew) {
-          setOpenApps(prev => [...prev, app]);
+
+  const openAndActivateApp = (
+    app: AppDefinition,
+    initialInteraction: InteractionData,
+  ) => {
+    let isNew = !openApps.some((openApp) => openApp.id === app.id);
+    if (isNew) {
+      setOpenApps((prev) => [...prev, app]);
+    }
+    setActiveAppId(app.id);
+    if (isParametersOpen) setIsParametersOpen(false);
+
+    // Initialize window state if it doesn't exist
+    setWindowStates((prevStates) => {
+      if (prevStates[app.id]) {
+        return prevStates; // Already exists
       }
-      setActiveAppId(app.id);
-      if (isParametersOpen) setIsParametersOpen(false);
+      const container = mainContainerRef.current;
+      const defaultWidth = 800;
+      const defaultHeight = 600;
+      const newRect = container
+        ? {
+            width: defaultWidth,
+            height: defaultHeight,
+            x: Math.max(0, (container.clientWidth - defaultWidth) / 2),
+            y: Math.max(0, (container.clientHeight - defaultHeight) / 2),
+          }
+        : {width: defaultWidth, height: defaultHeight, x: 50, y: 50};
 
-      // Initialize window state if it doesn't exist
-      setWindowStates(prevStates => {
-        if (prevStates[app.id]) {
-            return prevStates; // Already exists
-        }
-        const container = mainContainerRef.current;
-        const defaultWidth = 800;
-        const defaultHeight = 600;
-        const newRect = container
-          ? {
-              width: defaultWidth,
-              height: defaultHeight,
-              x: Math.max(0, (container.clientWidth - defaultWidth) / 2),
-              y: Math.max(0, (container.clientHeight - defaultHeight) / 2),
-            }
-          : {width: defaultWidth, height: defaultHeight, x: 50, y: 50};
-          
-        return {
-            ...prevStates,
-            [app.id]: {
-                rect: newRect,
-                isMaximized: false,
-                preMaximizeRect: null,
-            }
-        };
-      });
-
-      if (!isNew && appStates[app.id]) {
-          return; // App already open, just switch to it
-      }
-
-      const newHistory = [initialInteraction];
-      const appPath = [app.id];
-      const cacheKey = appPath.join('__');
-      
-      const newAppState: AppState = {
-        llmContent: '',
-        interactionHistory: newHistory,
-        currentAppPath: appPath,
-        isLoading: false,
-        error: null,
+      return {
+        ...prevStates,
+        [app.id]: {
+          rect: newRect,
+          isMaximized: false,
+          preMaximizeRect: null,
+        },
       };
-      setAppStates(prev => ({...prev, [app.id]: newAppState}));
+    });
 
-      if (isStatefulnessEnabled && appContentCache[cacheKey]) {
-        setAppStates(prev => ({...prev, [app.id]: {...newAppState, llmContent: appContentCache[cacheKey]}}));
-      } else {
-        internalHandleLlmRequest(app.id, newHistory, currentMaxHistoryLength, language);
-      }
-  }
+    if (!isNew && appStates[app.id]) {
+      return; // App already open, just switch to it
+    }
 
+    const newHistory = [initialInteraction];
+    const appPath = [app.id];
+    const cacheKey = appPath.join('__');
+
+    const newAppState: AppState = {
+      llmContent: '',
+      interactionHistory: newHistory,
+      currentAppPath: appPath,
+      isLoading: false,
+      error: null,
+    };
+    setAppStates((prev) => ({...prev, [app.id]: newAppState}));
+
+    if (isStatefulnessEnabled && appContentCache[cacheKey]) {
+      setAppStates((prev) => ({
+        ...prev,
+        [app.id]: {...newAppState, llmContent: appContentCache[cacheKey]},
+      }));
+    } else {
+      internalHandleLlmRequest(
+        app.id,
+        newHistory,
+        currentMaxHistoryLength,
+        language,
+      );
+    }
+  };
 
   const handleAppOpen = (app: AppDefinition) => {
     const initialInteraction: InteractionData = {
@@ -438,9 +491,11 @@ const App: React.FC = () => {
     };
     openAndActivateApp(app, initialInteraction);
   };
-  
+
   const handleSearch = (query: string) => {
-    const webApp = APP_DEFINITIONS_CONFIG.find((app) => app.id === 'web_browser_app');
+    const webApp = APP_DEFINITIONS_CONFIG.find(
+      (app) => app.id === 'web_browser_app',
+    );
     if (!webApp) return;
 
     const searchInteraction: InteractionData = {
@@ -472,14 +527,14 @@ const App: React.FC = () => {
     });
     setActiveAppId(null);
   };
-  
+
   const handleShowDesktop = () => {
-      setActiveAppId(null);
+    setActiveAppId(null);
   };
 
   const handleSwitchApp = (appId: string) => {
-      setActiveAppId(appId);
-  }
+    setActiveAppId(appId);
+  };
 
   const handleGoBack = () => {
     if (!activeAppId || !activeAppState) return;
@@ -488,27 +543,39 @@ const App: React.FC = () => {
     const newPath = activeAppState.currentAppPath.slice(0, -1);
     const newHistory = activeAppState.interactionHistory.slice(1);
     const cacheKey = newPath.join('__');
-    
+
     const newState = {
-        ...activeAppState,
-        currentAppPath: newPath,
-        interactionHistory: newHistory,
-        llmContent: '',
-        error: null,
+      ...activeAppState,
+      currentAppPath: newPath,
+      interactionHistory: newHistory,
+      llmContent: '',
+      error: null,
     };
-    setAppStates(prev => ({ ...prev, [activeAppId]: newState}));
+    setAppStates((prev) => ({...prev, [activeAppId]: newState}));
 
     if (isStatefulnessEnabled && appContentCache[cacheKey]) {
-      setAppStates(prev => ({ ...prev, [activeAppId]: {...newState, llmContent: appContentCache[cacheKey], isLoading: false }}));
+      setAppStates((prev) => ({
+        ...prev,
+        [activeAppId]: {
+          ...newState,
+          llmContent: appContentCache[cacheKey],
+          isLoading: false,
+        },
+      }));
     } else {
-      internalHandleLlmRequest(activeAppId, newHistory, currentMaxHistoryLength, language);
+      internalHandleLlmRequest(
+        activeAppId,
+        newHistory,
+        currentMaxHistoryLength,
+        language,
+      );
     }
   };
 
   const handleToggleParametersPanel = () => {
     setIsParametersOpen((prev) => {
-        if (!prev) setActiveAppId(null); // Hide active app when opening params
-        return !prev;
+      if (!prev) setActiveAppId(null); // Hide active app when opening params
+      return !prev;
     });
   };
 
@@ -528,54 +595,57 @@ const App: React.FC = () => {
   const handleMaximize = () => {
     const container = mainContainerRef.current;
     if (!container || !activeAppId || !activeWindowState) return;
-    
-    setWindowStates(prev => {
-        const current = prev[activeAppId];
-        if (current.isMaximized) {
-            // Restore
-            return {
-                ...prev,
-                [activeAppId]: {
-                    ...current,
-                    rect: current.preMaximizeRect || current.rect,
-                    isMaximized: false,
-                    preMaximizeRect: null,
-                }
-            };
-        } else {
-            // Maximize
-            const newRect = {
-                x: 0,
-                y: 0,
-                width: container.clientWidth,
-                height: container.clientHeight,
-            };
-            return {
-                ...prev,
-                [activeAppId]: {
-                    ...current,
-                    rect: newRect,
-                    isMaximized: true,
-                    preMaximizeRect: current.rect,
-                }
-            };
-        }
+
+    setWindowStates((prev) => {
+      const current = prev[activeAppId];
+      if (current.isMaximized) {
+        // Restore
+        return {
+          ...prev,
+          [activeAppId]: {
+            ...current,
+            rect: current.preMaximizeRect || current.rect,
+            isMaximized: false,
+            preMaximizeRect: null,
+          },
+        };
+      } else {
+        // Maximize
+        const newRect = {
+          x: 0,
+          y: 0,
+          width: container.clientWidth,
+          height: container.clientHeight,
+        };
+        return {
+          ...prev,
+          [activeAppId]: {
+            ...current,
+            rect: newRect,
+            isMaximized: true,
+            preMaximizeRect: current.rect,
+          },
+        };
+      }
     });
   };
 
-  const updateActiveWindowRect = useCallback((updater: WindowRect | ((prev: WindowRect) => WindowRect)) => {
-    if (!activeAppId) return;
-    setWindowStates(prev => {
-      const current = prev[activeAppId];
-      if (!current) return prev;
-      const newRect = typeof updater === 'function' ? updater(current.rect) : updater;
-      return {
-        ...prev,
-        [activeAppId]: { ...current, rect: newRect }
-      };
-    });
-  }, [activeAppId]);
-
+  const updateActiveWindowRect = useCallback(
+    (updater: WindowRect | ((prev: WindowRect) => WindowRect)) => {
+      if (!activeAppId) return;
+      setWindowStates((prev) => {
+        const current = prev[activeAppId];
+        if (!current) return prev;
+        const newRect =
+          typeof updater === 'function' ? updater(current.rect) : updater;
+        return {
+          ...prev,
+          [activeAppId]: {...current, rect: newRect},
+        };
+      });
+    },
+    [activeAppId],
+  );
 
   const windowTitle = isParametersOpen
     ? 'Riyad My Computer'
@@ -666,40 +736,39 @@ const App: React.FC = () => {
             </div>
           </Window>
         )}
-         {/* Render Desktop view when no app is active */}
-         {!activeApp && !isParametersOpen && (
-            <DesktopView onAppOpen={handleAppOpen} onSearch={handleSearch} />
-          )}
-          {/* Render parameters panel when it's open (it will appear inside a generic window) */}
-          {isParametersOpen && (
-            <Window
-                title={windowTitle}
-                onClose={handleToggleParametersPanel}
-                isAppOpen={false}
-                onToggleParameters={handleToggleParametersPanel}
-                onExitToDesktop={handleShowDesktop}
-                isParametersPanelOpen={isParametersOpen}
-                onGoBack={() => {}}
-                canGoBack={false}
-                rect={{x: 100, y: 100, width: 600, height: 450}} // Default rect for params
-                setRect={() => {}} // Non-movable
-                containerRef={mainContainerRef}
-                onMinimize={() => {}}
-                onMaximize={() => {}}
-                isMaximized={false}
-                isLoading={false}
-            >
-                <ParametersPanel
-                  currentLength={currentMaxHistoryLength}
-                  onUpdateHistoryLength={handleUpdateHistoryLength}
-                  onClosePanel={handleToggleParametersPanel}
-                  isStatefulnessEnabled={isStatefulnessEnabled}
-                  onSetStatefulness={handleSetStatefulness}
-                  currentLanguage={language}
-                  onSetLanguage={setLanguage}
-                />
-            </Window>
-          )}
+        {/* Render Desktop view when no app is active */}
+        {!activeApp && !isParametersOpen && (
+          <DesktopView onAppOpen={handleAppOpen} onSearch={handleSearch} />
+        )}
+        {/* Render parameters panel when it's open (it will appear inside a generic window) */}
+        {isParametersOpen && (
+          <Window
+            title={windowTitle}
+            onClose={handleToggleParametersPanel}
+            isAppOpen={false}
+            onToggleParameters={handleToggleParametersPanel}
+            onExitToDesktop={handleShowDesktop}
+            isParametersPanelOpen={isParametersOpen}
+            onGoBack={() => {}}
+            canGoBack={false}
+            rect={{x: 100, y: 100, width: 600, height: 450}} // Default rect for params
+            setRect={() => {}} // Non-movable
+            containerRef={mainContainerRef}
+            onMinimize={() => {}}
+            onMaximize={() => {}}
+            isMaximized={false}
+            isLoading={false}>
+            <ParametersPanel
+              currentLength={currentMaxHistoryLength}
+              onUpdateHistoryLength={handleUpdateHistoryLength}
+              onClosePanel={handleToggleParametersPanel}
+              isStatefulnessEnabled={isStatefulnessEnabled}
+              onSetStatefulness={handleSetStatefulness}
+              currentLanguage={language}
+              onSetLanguage={setLanguage}
+            />
+          </Window>
+        )}
       </main>
       <Taskbar
         openApps={openApps}
